@@ -1,0 +1,39 @@
+# Environment & Secrets
+.env
+*.pem
+*.key
+
+# Freqtrade data
+freqtrade/user_data/data/
+freqtrade/user_data/logs/
+freqtrade/user_data/backtest_results/
+freqtrade/user_data/hyperopt_results/
+freqtrade/user_data/models/
+freqtrade/user_data/plot/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Claude logs
+.claude-log/

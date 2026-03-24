@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  freqtrade:
+    image: freqtradeorg/freqtrade:stable
+    container_name: freqtrade
+    restart: always
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./freqtrade/user_data:/freqtrade/user_data
+    env_file:
+      - .env
+    command: >
+      trade
+      --config user_data/config.json
+      --strategy LLMHybridStrategy
+      --logfile user_data/logs/freqtrade.log
+
+  # Phase 4: OpenClaw (uncomment when ready)
+  # openclaw:
+  #   image: openclaw/openclaw:latest
+  #   container_name: openclaw
+  #   restart: always
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     - FREQTRADE_API_URL=http://freqtrade:8080
+  #   depends_on:
+  #     - freqtrade
