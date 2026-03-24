@@ -1,5 +1,9 @@
 version: "3.8"
 
+volumes:
+  shared_sentiment:
+    driver: local
+
 services:
   freqtrade:
     image: freqtradeorg/freqtrade:stable
@@ -9,6 +13,7 @@ services:
       - "127.0.0.1:8080:8080"
     volumes:
       - ./freqtrade/user_data:/freqtrade/user_data
+      - shared_sentiment:/freqtrade/user_data/shared
     env_file:
       - .env
     command: >
@@ -17,11 +22,13 @@ services:
       --strategy LLMHybridStrategy
       --logfile user_data/logs/freqtrade.log
 
-  # Phase 4: OpenClaw (uncomment when ready)
+  # Phase 3~4: OpenClaw (uncomment when ready)
   # openclaw:
   #   image: openclaw/openclaw:latest
   #   container_name: openclaw
   #   restart: always
+  #   volumes:
+  #     - shared_sentiment:/app/shared
   #   env_file:
   #     - .env
   #   environment:

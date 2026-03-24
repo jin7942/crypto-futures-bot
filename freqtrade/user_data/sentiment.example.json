@@ -1,0 +1,20 @@
+{
+    "BTC/USDT:USDT": {
+        "sentiment": "bullish",
+        "confidence": 0.7,
+        "reasoning": "RSI recovering from oversold, EMA trend turning bullish, volume increasing",
+        "updated_at": "2026-03-24T12:00:00Z"
+    },
+    "ETH/USDT:USDT": {
+        "sentiment": "neutral",
+        "confidence": 0.5,
+        "reasoning": "Mixed signals, sideways movement expected",
+        "updated_at": "2026-03-24T12:00:00Z"
+    },
+    "SOL/USDT:USDT": {
+        "sentiment": "bearish",
+        "confidence": 0.6,
+        "reasoning": "Breaking below key support, volume declining",
+        "updated_at": "2026-03-24T12:00:00Z"
+    }
+}

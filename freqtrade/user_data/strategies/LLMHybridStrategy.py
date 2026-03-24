@@ -1,8 +1,11 @@
 """
 LLM Hybrid Strategy for Crypto Futures Trading.
 
-NostalgiaForInfinity 기반 기술적 지표 + Claude LLM 시장 국면 필터.
+NostalgiaForInfinity 기반 기술적 지표 + OpenClaw LLM 시장 국면 필터.
 LLM은 진입 시그널에 대한 거부권만 보유하며, 시그널 생성 권한은 없다.
+
+센티먼트 데이터는 OpenClaw가 주기적으로 생성하여 sentiment.json에 저장하고,
+Freqtrade 전략이 이 파일을 읽어서 필터링에 사용한다.
 """
 
 import json
@@ -15,9 +18,7 @@ from typing import Optional
 
 import numpy as np
 import talib.abstract as ta
-from freqtrade.persistence import Trade
 from freqtrade.strategy import (
-    CategoricalParameter,
     DecimalParameter,
     IntParameter,
     IStrategy,
@@ -26,14 +27,30 @@ from pandas import DataFrame
 
 logger = logging.getLogger(__name__)
 
+# sentiment.json 기본 경로 (Docker 볼륨 마운트 기준)
+SENTIMENT_FILE = Path("/freqtrade/user_data/sentiment.json")
+
 
 class LLMHybridStrategy(IStrategy):
     """
-    하이브리드 전략: 기술적 지표 + LLM 시장 국면 필터.
+    하이브리드 전략: 기술적 지표 + OpenClaw LLM 시장 국면 필터.
 
     - 기술적 지표: RSI, Bollinger Bands, EMA, MACD, Volume
-    - LLM 필터: Claude API를 통한 시장 센티먼트 판단 (1~4시간 캐시)
+    - LLM 필터: OpenClaw가 생성한 sentiment.json 파일 읽기
     - LLM은 거부권만 보유: bearish 판단 시 롱 진입 차단, bullish 판단 시 숏 진입 차단
+
+    센티먼트 연동 방식:
+        [OpenClaw] ── 1~4시간마다 ──> sentiment.json 파일 저장
+        [Freqtrade] ── 매 캔들마다 ──> sentiment.json 파일 읽기
+
+    sentiment.json 형식:
+        {
+            "BTC/USDT:USDT": {
+                "sentiment": "bullish",
+                "confidence": 0.7,
+                "updated_at": "2026-03-24T12:00:00Z"
+            }
+        }
     """
 
     # Strategy interface version
@@ -60,10 +77,11 @@ class LLMHybridStrategy(IStrategy):
     process_only_new_candles = True
     startup_candle_count: int = 200
 
-    # LLM cache settings
-    _llm_cache: dict = {}
-    _llm_cache_ttl: int = 4 * 3600  # 4 hours in seconds
-    _llm_enabled: bool = True
+    # Sentiment file settings
+    _sentiment_cache: dict = {}
+    _sentiment_cache_ts: float = 0
+    _sentiment_cache_ttl: int = 60  # 파일을 60초마다 다시 읽기 (I/O 최소화)
+    _sentiment_max_age: int = 4 * 3600  # 4시간 이상 지난 센티먼트는 무시
 
     # Hyperoptable parameters
     buy_rsi = IntParameter(20, 40, default=30, space="buy", optimize=True)
@@ -73,7 +91,7 @@ class LLMHybridStrategy(IStrategy):
 
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
-        기술적 지표 계산 + LLM 센티먼트 업데이트.
+        기술적 지표 계산 + OpenClaw 센티먼트 읽기.
 
         Args:
             dataframe: OHLCV 데이터프레임
@@ -113,9 +131,9 @@ class LLMHybridStrategy(IStrategy):
         # ATR (Average True Range) for volatility
         dataframe["atr"] = ta.ATR(dataframe, timeperiod=14)
 
-        # LLM sentiment (cached, 4-hour intervals)
+        # OpenClaw sentiment (file-based)
         pair = metadata["pair"]
-        dataframe["llm_sentiment"] = self._get_cached_sentiment(pair, dataframe)
+        dataframe["llm_sentiment"] = self._read_sentiment(pair)
 
         return dataframe
 
@@ -175,7 +193,7 @@ class LLMHybridStrategy(IStrategy):
                  proposed_leverage: float, max_leverage: float, entry_tag: Optional[str],
                  side: str, **kwargs) -> float:
         """
-        레버리지 설정. config.json의 leverage 설정을 따르되 안전 상한선 적용.
+        레버리지 설정. 안전 상한선 3x 고정.
 
         Returns:
             레버리지 배수 (최대 3x)
@@ -183,143 +201,81 @@ class LLMHybridStrategy(IStrategy):
         return 3.0
 
     # ──────────────────────────────────────────────
-    # LLM Integration (Private Methods)
+    # Sentiment File Reader (Private Methods)
     # ──────────────────────────────────────────────
 
-    def _get_cached_sentiment(self, pair: str, dataframe: DataFrame) -> str:
+    def _read_sentiment(self, pair: str) -> str:
         """
-        LLM 센티먼트를 캐시 기반으로 조회.
+        OpenClaw가 생성한 sentiment.json에서 페어별 센티먼트를 읽는다.
 
-        캐시 TTL(4시간) 내이면 캐시 반환, 만료 시 LLM API 호출.
-        LLM 장애 시 'neutral' 반환 (장애 격리 원칙).
+        파일 I/O를 최소화하기 위해 60초 간격으로 캐시.
+        파일 없음/파싱 에러/4시간 초과 데이터는 모두 'neutral' 반환.
 
         Args:
             pair: 거래 페어 (e.g., "BTC/USDT:USDT")
-            dataframe: 현재 OHLCV 데이터
 
         Returns:
             "bullish", "bearish", "neutral" 중 하나
         """
-        if not self._llm_enabled:
+        now = time.time()
+
+        # 캐시가 유효하면 파일을 다시 읽지 않음
+        if now - self._sentiment_cache_ts < self._sentiment_cache_ttl:
+            return self._get_pair_sentiment(pair)
+
+        # sentiment.json 파일 읽기
+        try:
+            if not SENTIMENT_FILE.exists():
+                logger.debug(f"Sentiment file not found: {SENTIMENT_FILE}")
+                self._sentiment_cache = {}
+                self._sentiment_cache_ts = now
+                return "neutral"
+
+            with open(SENTIMENT_FILE, "r") as f:
+                self._sentiment_cache = json.load(f)
+
+            self._sentiment_cache_ts = now
+            logger.debug(f"Sentiment file loaded: {len(self._sentiment_cache)} pairs")
+
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Failed to read sentiment file: {e}")
+            self._sentiment_cache = {}
+            self._sentiment_cache_ts = now
+
+        return self._get_pair_sentiment(pair)
+
+    def _get_pair_sentiment(self, pair: str) -> str:
+        """
+        캐시에서 특정 페어의 센티먼트를 반환.
+
+        4시간 이상 지난 데이터는 stale로 판단하여 'neutral' 반환.
+
+        Args:
+            pair: 거래 페어
+
+        Returns:
+            "bullish", "bearish", "neutral" 중 하나
+        """
+        if pair not in self._sentiment_cache:
             return "neutral"
 
-        now = int(time.time())
-        cache_key = pair
+        entry = self._sentiment_cache[pair]
+        sentiment = entry.get("sentiment", "neutral")
 
-        if cache_key in self._llm_cache:
-            cached = self._llm_cache[cache_key]
-            if now - cached["timestamp"] < self._llm_cache_ttl:
-                return cached["sentiment"]
+        # 유효한 값인지 검증
+        if sentiment not in ("bullish", "bearish", "neutral"):
+            return "neutral"
 
-        # Call LLM API
-        sentiment = self._call_llm_api(pair, dataframe)
-        self._llm_cache[cache_key] = {
-            "sentiment": sentiment,
-            "timestamp": now,
-        }
+        # updated_at이 있으면 staleness 체크
+        updated_at = entry.get("updated_at")
+        if updated_at:
+            try:
+                update_time = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+                age_seconds = (datetime.now(timezone.utc) - update_time).total_seconds()
+                if age_seconds > self._sentiment_max_age:
+                    logger.info(f"Stale sentiment for {pair}: {age_seconds:.0f}s old, using neutral")
+                    return "neutral"
+            except (ValueError, TypeError):
+                pass
 
         return sentiment
-
-    def _call_llm_api(self, pair: str, dataframe: DataFrame) -> str:
-        """
-        Claude API를 호출하여 시장 센티먼트 판단.
-
-        입력: 최근 지표 요약 (~500 tokens)
-        출력: {"sentiment": "bullish|bearish|neutral", "confidence": 0.0-1.0}
-
-        Args:
-            pair: 거래 페어
-            dataframe: 현재 OHLCV + 지표 데이터
-
-        Returns:
-            "bullish", "bearish", "neutral" 중 하나. 에러 시 "neutral".
-        """
-        try:
-            import anthropic
-        except ImportError:
-            logger.warning("anthropic package not installed. LLM filter disabled.")
-            self._llm_enabled = False
-            return "neutral"
-
-        try:
-            api_key = self._get_api_key()
-            if not api_key:
-                logger.warning("ANTHROPIC_API_KEY not set. LLM filter disabled.")
-                self._llm_enabled = False
-                return "neutral"
-
-            # Compress market data into minimal prompt (~500 tokens)
-            market_summary = self._build_market_summary(pair, dataframe)
-
-            client = anthropic.Anthropic(api_key=api_key)
-            response = client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=100,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": (
-                            f"Analyze this crypto futures market data and respond with ONLY "
-                            f"a JSON object.\n\n{market_summary}\n\n"
-                            f'Respond ONLY with: {{"sentiment": "bullish|bearish|neutral", '
-                            f'"confidence": 0.0-1.0}}'
-                        ),
-                    }
-                ],
-            )
-
-            result = json.loads(response.content[0].text)
-            sentiment = result.get("sentiment", "neutral")
-
-            if sentiment not in ("bullish", "bearish", "neutral"):
-                return "neutral"
-
-            logger.info(f"LLM sentiment for {pair}: {sentiment} (confidence: {result.get('confidence', 'N/A')})")
-            return sentiment
-
-        except Exception as e:
-            logger.error(f"LLM API call failed for {pair}: {e}")
-            return "neutral"
-
-    def _build_market_summary(self, pair: str, dataframe: DataFrame) -> str:
-        """
-        LLM에 전달할 시장 데이터 요약 생성.
-
-        최근 캔들의 주요 지표를 압축하여 ~500 토큰 이내로 구성.
-
-        Args:
-            pair: 거래 페어
-            dataframe: 지표가 포함된 데이터프레임
-
-        Returns:
-            시장 요약 문자열
-        """
-        if dataframe.empty:
-            return f"Pair: {pair}\nNo data available."
-
-        last = dataframe.iloc[-1]
-        prev_24h = dataframe.iloc[-288] if len(dataframe) > 288 else dataframe.iloc[0]
-        price_change_24h = ((last["close"] - prev_24h["close"]) / prev_24h["close"]) * 100
-
-        return (
-            f"Pair: {pair}\n"
-            f"Price: {last['close']:.4f}\n"
-            f"24h Change: {price_change_24h:.2f}%\n"
-            f"RSI(14): {last['rsi']:.1f}\n"
-            f"BB Position: price {'below' if last['close'] < last['bb_lower'] else 'above' if last['close'] > last['bb_upper'] else 'within'} bands\n"
-            f"BB Width: {last['bb_width']:.4f}\n"
-            f"EMA Trend: {'bullish' if last['ema_9'] > last['ema_21'] > last['ema_50'] else 'bearish' if last['ema_9'] < last['ema_21'] < last['ema_50'] else 'mixed'}\n"
-            f"MACD Histogram: {last['macdhist']:.4f}\n"
-            f"Volume Ratio: {last['volume_ratio']:.2f}x avg\n"
-            f"ATR(14): {last['atr']:.4f}\n"
-        )
-
-    def _get_api_key(self) -> Optional[str]:
-        """
-        ANTHROPIC_API_KEY를 환경변수에서 조회.
-
-        Returns:
-            API 키 문자열 또는 None
-        """
-        import os
-        return os.environ.get("ANTHROPIC_API_KEY")
