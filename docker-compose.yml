@@ -1,6 +1,5 @@
-volumes:
-  shared_sentiment:
-    driver: local
+# shared_sentiment: named volume → bind mount로 변경 (ADR-004)
+# 네이티브 OpenClaw에서 직접 접근 가능하도록 호스트 디렉토리 사용
 
 networks:
   jin-net:
@@ -15,7 +14,7 @@ services:
       - ./freqtrade/user_data:/freqtrade/user_data
       - ./nfi/NostalgiaForInfinityX7.py:/freqtrade/user_data/strategies/NostalgiaForInfinityX7.py:ro
       - ./nfi/configs:/freqtrade/nfi-configs:ro
-      - shared_sentiment:/freqtrade/user_data/shared
+      - /opt/openclaw/shared/sentiment:/freqtrade/user_data/shared
     env_file:
       - .env
     networks:
@@ -28,22 +27,8 @@ services:
       --config /freqtrade/nfi-configs/pairlist-static-binance-futures-usdt.json
       --config /freqtrade/nfi-configs/blacklist-binance.json
       --config /freqtrade/nfi-configs/trading_mode-futures.json
-      --strategy LLMSentimentNFI
+      --strategy NostalgiaForInfinityX7
       --logfile user_data/logs/freqtrade.log
 
-  # Phase 3~4: OpenClaw (uncomment when ready)
-  # openclaw:
-  #   image: openclaw/openclaw:latest
-  #   container_name: openclaw
-  #   restart: unless-stopped
-  #   volumes:
-  #     - shared_sentiment:/app/shared
-  #   env_file:
-  #     - .env
-  #   environment:
-  #     - FREQTRADE_API_URL=http://freqtrade:8080
-  #   networks:
-  #     - default
-  #     - jin-net
-  #   depends_on:
-  #     - freqtrade
+  # OpenClaw: 네이티브(systemd) 배포로 전환. ADR-004 참고.
+  # /factory/openclaw-agent/ 에서 관리.
