@@ -1,5 +1,6 @@
 | 버전 | 변경내용 | 작성자 | 수정일 |
 | --- | --- | --- | --- |
+| v1.1 | 검토 반영: Phase 번호 정리, emergency 만료 정책, confidence 사이징 NFI 충돌 방지 | 김진범 | 2026-03-25 |
 | v1.0 | 초기 작성 | 김진범 | 2026-03-25 |
 
 # LLM 연동 설계
@@ -16,7 +17,7 @@
 
 ---
 
-## 2 현재 구조 (Phase 2)
+## 2 현재 구조
 
 ```
 [OpenClaw] ── 1~4시간마다 ──> sentiment.json
@@ -54,9 +55,9 @@
 
 ## 3 확장 계획
 
-### Phase 3: 센티먼트 생성 + Confidence 포지션 사이징
+### 단계 1: 센티먼트 생성 + Confidence 포지션 사이징
 
-OpenClaw가 실제로 sentiment.json을 생성하는 단계.
+OpenClaw가 실제로 sentiment.json을 생성하는 단계. (planning.md Phase 3에 해당)
 
 #### 3.1 데이터 소스
 
@@ -95,7 +96,17 @@ Rules:
 
 #### 3.3 Confidence 기반 포지션 사이징
 
-`custom_stake_amount()` 오버라이드로 구현.
+`custom_stake_amount()`에서 `super()` 결과에 비율을 곱하는 방식으로 구현.
+NFI X7이 자체 `custom_stake_amount()`로 grinding/rebuy 포지션을 관리하므로, 직접 오버라이드하면 충돌한다. 반드시 `super()` 결과를 존중해야 한다.
+
+```python
+def custom_stake_amount(self, ...):
+    # NFI 원본 계산 먼저
+    stake = super().custom_stake_amount(...)
+    # confidence 비율 적용
+    confidence = self._get_pair_sentiment_confidence(pair)
+    return stake * self._confidence_to_ratio(confidence)
+```
 
 | confidence | stake 비율 | 근거 |
 |---|---|---|
@@ -132,7 +143,7 @@ Rules:
 
 ---
 
-### Phase 4: 긴급 이벤트 감지
+### 단계 2: 긴급 이벤트 감지
 
 #### 4.1 긴급 이벤트 분류
 
@@ -153,15 +164,21 @@ Rules:
     "event_type": "exchange_hack",
     "action": "halt_trading",
     "reason": "Binance hot wallet compromise reported",
-    "updated_at": "2026-03-25T14:30:00Z"
+    "updated_at": "2026-03-25T14:30:00Z",
+    "expires_at": "2026-03-25T18:30:00Z"
 }
 ```
+
+만료 정책:
+- `expires_at` 필드로 자동 만료. 초과 시 emergency 무시.
+- `expires_at` 없으면 기본 4시간 후 만료.
+- OpenClaw가 상황 해제 시 `"emergency": false`로 갱신.
 
 `confirm_trade_entry()`에서 emergency.json 먼저 확인 → critical이면 모든 진입 거부.
 
 ---
 
-### Phase 5: 과거 매매 반성 (Reflection)
+### 단계 3: 과거 매매 반성 (Reflection)
 
 CryptoTrade 논문(EMNLP 2024) 참고.
 
