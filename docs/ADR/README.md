@@ -9,4 +9,5 @@
 | [ADR-001](ADR-001-trading-framework-selection.md) | 트레이딩 프레임워크 선정 | 확정 | 2026-03-24 |
 | [ADR-002](ADR-002-llm-integration-method.md) | LLM 연동 방식 결정 | 확정 | 2026-03-24 |
 | [ADR-003](ADR-003-sentiment-communication.md) | 센티먼트 통신 방식 결정 | 확정 | 2026-03-24 |
-| [ADR-004](ADR-004-deployment-strategy.md) | 배포 전략 결정 | 확정 | 2026-03-24 |
+| [ADR-004](ADR-004-deployment-strategy.md) | 배포 전략 결정 | 대체됨 (→ ADR-005) | 2026-03-24 |
+| [ADR-005](ADR-005-deployment-local-infra.md) | 배포 전략 변경 (로컬 서버 인프라 활용) | 확정 | 2026-03-24 |

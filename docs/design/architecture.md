@@ -1,5 +1,6 @@
 | 버전 | 변경내용 | 작성자 | 수정일 |
 | --- | --- | --- | --- |
+| v1.1 | 로컬 서버 인프라 반영 (jin-net, nginx 리버스 프록시) | 김진범 | 2026-03-24 |
 | v1.0 | 초기 작성 | 김진범 | 2026-03-24 |
 
 # 시스템 아키텍처 설계
@@ -7,31 +8,37 @@
 ## 1 전체 아키텍처
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        Docker Host (VPS)                     │
-│                                                              │
-│  ┌──────────────────────┐    ┌───────────────────────────┐  │
-│  │   Freqtrade Container │    │   OpenClaw Container       │  │
-│  │                        │    │                             │  │
-│  │  ┌──────────────────┐ │    │  ┌───────────────────────┐ │  │
-│  │  │ LLMHybridStrategy │ │    │  │ Sentiment Generator   │ │  │
-│  │  │  - RSI, BB, EMA   │ │    │  │  - Claude LLM 호출    │ │  │
-│  │  │  - MACD, Volume   │ │    │  │  - 시장 데이터 분석   │ │  │
-│  │  │  - Sentiment Read  │◀┼────┼──│  - sentiment.json 쓰기│ │  │
-│  │  └──────────────────┘ │    │  └───────────────────────┘ │  │
-│  │           │            │    │             │               │  │
-│  │  ┌────────▼─────────┐ │    │  ┌──────────▼────────────┐ │  │
-│  │  │ Order Execution   │ │    │  │ Monitoring & Briefing │ │  │
-│  │  │  - Binance Futures│ │    │  │  - Freqtrade API 조회 │ │  │
-│  │  │  - Risk Mgmt      │ │    │  │  - Telegram 전송      │ │  │
-│  │  └──────────────────┘ │    │  └───────────────────────┘ │  │
-│  │           │            │    │             ▲               │  │
-│  │  ┌────────▼─────────┐ │    │             │               │  │
-│  │  │ REST API :8080    │─┼────┼─────────────┘               │  │
-│  │  └──────────────────┘ │    │                             │  │
-│  └──────────────────────┘    └───────────────────────────┘  │
-│              │                                               │
-└──────────────┼───────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                  Docker Host (로컬 서버 192.168.0.66)              │
+│                                                                   │
+│  ┌─────────── jin-net (외부 브릿지) ───────────────────────────┐ │
+│  │  nginx-proxy (:80)                                           │ │
+│  │    └─ freqtrade.internal → freqtrade:8080                    │ │
+│  └──────────────────────────────────────────────────────────────┘ │
+│                                                                   │
+│  ┌──────────────────────┐    ┌───────────────────────────┐      │
+│  │   Freqtrade Container │    │   OpenClaw Container       │      │
+│  │   (jin-net + default)  │    │   (jin-net + default)      │      │
+│  │                        │    │                             │      │
+│  │  ┌──────────────────┐ │    │  ┌───────────────────────┐ │      │
+│  │  │ LLMHybridStrategy │ │    │  │ Sentiment Generator   │ │      │
+│  │  │  - RSI, BB, EMA   │ │    │  │  - Claude LLM 호출    │ │      │
+│  │  │  - MACD, Volume   │ │    │  │  - 시장 데이터 분석   │ │      │
+│  │  │  - Sentiment Read  │◀┼────┼──│  - sentiment.json 쓰기│ │      │
+│  │  └──────────────────┘ │    │  └───────────────────────┘ │      │
+│  │           │            │    │             │               │      │
+│  │  ┌────────▼─────────┐ │    │  ┌──────────▼────────────┐ │      │
+│  │  │ Order Execution   │ │    │  │ Monitoring & Briefing │ │      │
+│  │  │  - Binance Futures│ │    │  │  - Freqtrade API 조회 │ │      │
+│  │  │  - Risk Mgmt      │ │    │  │  - Telegram 전송      │ │      │
+│  │  └──────────────────┘ │    │  └───────────────────────┘ │      │
+│  │           │            │    │             ▲               │      │
+│  │  ┌────────▼─────────┐ │    │             │               │      │
+│  │  │ REST API :8080    │─┼────┼─────────────┘               │      │
+│  │  └──────────────────┘ │    │                             │      │
+│  └──────────────────────┘    └───────────────────────────┘      │
+│              │                                                    │
+└──────────────┼────────────────────────────────────────────────────┘
                │
                ▼
         [Binance Futures]
@@ -132,10 +139,10 @@ Freqtrade (5분 캔들마다)
 
 ### 4.1 컨테이너 구조
 
-| 컨테이너 | 이미지 | 포트 | 볼륨 |
-|---|---|---|---|
-| freqtrade | freqtradeorg/freqtrade:stable | 127.0.0.1:8080 | ./freqtrade/user_data |
-| openclaw | openclaw/openclaw:latest | - | 공유 볼륨 (sentiment.json) |
+| 컨테이너 | 이미지 | 네트워크 | 접근 방법 | 볼륨 |
+|---|---|---|---|---|
+| freqtrade | freqtradeorg/freqtrade:stable | default + jin-net | http://freqtrade.internal (nginx 경유) | ./freqtrade/user_data |
+| openclaw | openclaw/openclaw:latest | default + jin-net | - | 공유 볼륨 (sentiment.json) |
 
 ### 4.2 볼륨 공유
 
@@ -143,18 +150,28 @@ OpenClaw와 Freqtrade는 `user_data/` 디렉토리를 공유 볼륨으로 마운
 
 ```yaml
 volumes:
-  shared_data:
+  shared_sentiment:
     driver: local
+
+networks:
+  jin-net:
+    external: true
 
 services:
   freqtrade:
     volumes:
       - ./freqtrade/user_data:/freqtrade/user_data
-      - shared_data:/freqtrade/user_data/shared
+      - shared_sentiment:/freqtrade/user_data/shared
+    networks:
+      - default
+      - jin-net
 
   openclaw:
     volumes:
-      - shared_data:/app/shared
+      - shared_sentiment:/app/shared
+    networks:
+      - default
+      - jin-net
 ```
 
 ---
@@ -163,8 +180,8 @@ services:
 
 | 항목 | 방침 |
 |---|---|
-| 거래소 API 키 | Freqtrade 컨테이너만 접근. .env 파일로 관리 |
-| Freqtrade REST API | 127.0.0.1만 바인딩 (외부 접근 차단) |
+| 거래소 API 키 | Freqtrade 컨테이너만 접근. config.local.json으로 관리 (gitignore) |
+| Freqtrade REST API | jin-net 내부에서만 접근 가능 (nginx 리버스 프록시 경유) |
 | OpenClaw | 거래소 API 키 접근 불가. 읽기 전용 |
 | Claude LLM | 거래소 API 키 접근 불가. OpenClaw 경유 |
 | sentiment.json | 검증 후 사용 (유효값 체크 + staleness 체크) |

@@ -82,18 +82,6 @@ crypto-futures-bot/
 
 ---
 
-## 리스크 관리 규칙
-
-| 항목 | 규칙 |
-|---|---|
-| 레버리지 | 최대 3x. 절대 초과 금지 |
-| 손절 | -5% (본금 기준). stoploss_on_exchange: true |
-| 드로다운 | 15% 초과 시 전체 거래 중단 |
-| 투입 자본 | 잃어도 생활에 지장 없는 금액만 |
-| 실전 전환 | dry-run 2주 안정 확인 후에만 |
-
----
-
 ## 문서화
 
 ### 문서 디렉토리 구조
@@ -175,8 +163,6 @@ docs/
 ## 버전 관리
 
 - 커밋: `<type>: <subject>` (feat, fix, refactor, docs, test, chore)
-- 전략 수정 시 반드시 백테스트 수행 후 커밋
-- dry_run: true 상태에서 충분히 테스트 후 실전 전환
 
 ---
 
@@ -187,6 +173,7 @@ docs/
 | 트레이딩 프레임워크 | Freqtrade (Docker 이미지) | FreqAI 내장, 최대 커뮤니티, 선물 완전 지원 (ADR-001) |
 | LLM 연동 | OpenClaw → sentiment.json → Freqtrade | 비용 $0, 장애 격리, 단순함 (ADR-002) |
 | 센티먼트 통신 | JSON 파일 (sentiment.json) | KISS, 인프라 최소화, 디버깅 용이 (ADR-003) |
-| 배포 | Docker Compose (단일 VPS) | 저비용, 단순, stoploss_on_exchange로 안전장치 (ADR-004) |
+| 배포 | Docker Compose (로컬 서버 + jin-net) | 비용 $0, 기존 인프라 활용, nginx 리버스 프록시 (ADR-005) |
+| 매매 전략 | NostalgiaForInfinityX7 + LLMSentimentNFI 서브클래스 | 커뮤니티 검증 전략, X7이 공식 권장, NFI 원본 수정 없음 |
 | Freqtrade 코어 | 수정 안 함. Docker 이미지 사용 | upstream 업데이트 용이, 유지보수 최소화 |
 | LLM 역할 | 거부권만 보유 (시그널 생성 권한 없음) | 할루시네이션 리스크 최소화 |

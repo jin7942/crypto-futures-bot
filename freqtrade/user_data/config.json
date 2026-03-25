@@ -1,25 +1,38 @@
 {
     "trading_mode": "futures",
     "margin_mode": "isolated",
-    "max_open_trades": 5,
+    "max_open_trades": 6,
     "stake_currency": "USDT",
     "stake_amount": "unlimited",
     "tradable_balance_ratio": 0.99,
     "fiat_display_currency": "USD",
     "dry_run": true,
-    "dry_run_wallet": 1000,
+    "dry_run_wallet": 10000,
+    "grinding_enable": true,
+    "timeframe": "5m",
     "cancel_open_orders_on_trade": false,
     "unfilledtimeout": {
-        "entry": 10,
-        "exit": 10,
+        "entry": 3,
+        "exit": 2,
         "exit_timeout_count": 0,
         "unit": "minutes"
+    },
+    "order_types": {
+        "entry": "limit",
+        "exit": "limit",
+        "emergency_exit": "limit",
+        "force_entry": "limit",
+        "force_exit": "limit",
+        "stoploss": "limit",
+        "stoploss_on_exchange": false,
+        "stoploss_on_exchange_interval": 60,
+        "stoploss_on_exchange_limit_ratio": 0.99
     },
     "entry_pricing": {
         "price_side": "same",
         "use_order_book": true,
         "order_book_top": 1,
-        "price_last_balance": 0.0,
+        "price_last_balance": 0,
         "check_depth_of_market": {
             "enabled": false,
             "bids_to_ask_delta": 1
@@ -34,40 +47,22 @@
         "name": "binance",
         "key": "",
         "secret": "",
-        "ccxt_config": {},
-        "ccxt_async_config": {},
-        "pair_whitelist": [
-            "BTC/USDT:USDT",
-            "ETH/USDT:USDT",
-            "SOL/USDT:USDT",
-            "XRP/USDT:USDT",
-            "BNB/USDT:USDT"
-        ],
-        "pair_blacklist": [
-            ".*_PREMIUM/.*",
-            ".*DOWN/.*",
-            ".*UP/.*"
-        ]
-    },
-    "pairlists": [
-        {
-            "method": "StaticPairList"
+        "ccxt_config": {
+            "enableRateLimit": true,
+            "rateLimit": 60
+        },
+        "ccxt_async_config": {
+            "enableRateLimit": true,
+            "rateLimit": 60
         }
-    ],
+    },
     "leverage": {
         ".*": 3
     },
-    "stoploss": -0.05,
-    "trailing_stop": true,
-    "trailing_stop_positive": 0.02,
-    "trailing_stop_positive_offset": 0.03,
-    "trailing_only_offset_is_reached": true,
-    "minimal_roi": {
-        "0": 0.10,
-        "30": 0.05,
-        "60": 0.03,
-        "120": 0.01
-    },
+    "stoploss": -0.99,
+    "use_exit_signal": true,
+    "exit_profit_only": false,
+    "ignore_roi_if_entry_signal": true,
     "api_server": {
         "enabled": true,
         "listen_ip_address": "0.0.0.0",
@@ -93,7 +88,7 @@
     },
     "bot_name": "crypto-futures-bot",
     "initial_state": "running",
-    "force_entry_enable": false,
+    "force_entry_enable": true,
     "internals": {
         "process_throttle_secs": 5
     }

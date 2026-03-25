@@ -1,0 +1,17 @@
+{
+    "_comment": "이 파일을 config.local.json으로 복사 후 실제 값을 입력하세요.",
+    "exchange": {
+        "key": "your_binance_api_key",
+        "secret": "your_binance_api_secret"
+    },
+    "api_server": {
+        "jwt_secret_key": "your_jwt_secret",
+        "username": "freqtrade",
+        "password": "your_password"
+    },
+    "telegram": {
+        "enabled": false,
+        "token": "your_telegram_bot_token",
+        "chat_id": "your_chat_id"
+    }
+}

@@ -3,6 +3,9 @@
 *.pem
 *.key
 
+# Local config (API keys override)
+freqtrade/user_data/config.local.json
+
 # Freqtrade data
 freqtrade/user_data/data/
 freqtrade/user_data/logs/
@@ -34,6 +37,10 @@ Thumbs.db
 
 # Docker
 docker-compose.override.yml
+
+# NostalgiaForInfinity (external clone)
+nfi/
+freqtrade/user_data/strategies/NostalgiaForInfinityX7.py
 
 # Claude logs
 .claude-log/

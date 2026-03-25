@@ -1,37 +1,49 @@
-version: "3.8"
-
 volumes:
   shared_sentiment:
     driver: local
+
+networks:
+  jin-net:
+    external: true
 
 services:
   freqtrade:
     image: freqtradeorg/freqtrade:stable
     container_name: freqtrade
-    restart: always
-    ports:
-      - "127.0.0.1:8080:8080"
+    restart: unless-stopped
     volumes:
       - ./freqtrade/user_data:/freqtrade/user_data
+      - ./nfi/NostalgiaForInfinityX7.py:/freqtrade/user_data/strategies/NostalgiaForInfinityX7.py:ro
+      - ./nfi/configs:/freqtrade/nfi-configs:ro
       - shared_sentiment:/freqtrade/user_data/shared
     env_file:
       - .env
+    networks:
+      - default
+      - jin-net
     command: >
       trade
       --config user_data/config.json
-      --strategy LLMHybridStrategy
+      --config user_data/config.local.json
+      --config /freqtrade/nfi-configs/pairlist-static-binance-futures-usdt.json
+      --config /freqtrade/nfi-configs/blacklist-binance.json
+      --config /freqtrade/nfi-configs/trading_mode-futures.json
+      --strategy LLMSentimentNFI
       --logfile user_data/logs/freqtrade.log
 
   # Phase 3~4: OpenClaw (uncomment when ready)
   # openclaw:
   #   image: openclaw/openclaw:latest
   #   container_name: openclaw
-  #   restart: always
+  #   restart: unless-stopped
   #   volumes:
   #     - shared_sentiment:/app/shared
   #   env_file:
   #     - .env
   #   environment:
   #     - FREQTRADE_API_URL=http://freqtrade:8080
+  #   networks:
+  #     - default
+  #     - jin-net
   #   depends_on:
   #     - freqtrade
