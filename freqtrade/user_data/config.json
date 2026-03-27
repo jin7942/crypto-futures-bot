@@ -1,7 +1,9 @@
 {
+    "strategy": "NostalgiaForInfinityX7",
     "dry_run": true,
     "dry_run_wallet": 10000,
     "grinding_enable": true,
+    "cancel_open_orders_on_exit": false,
     "max_open_trades": 6,
     "stake_currency": "USDT",
     "stake_amount": "unlimited",
@@ -47,14 +49,9 @@
         "name": "binance",
         "key": "",
         "secret": "",
-        "ccxt_config": {
-            "enableRateLimit": true,
-            "rateLimit": 60
-        },
-        "ccxt_async_config": {
-            "enableRateLimit": true,
-            "rateLimit": 60
-        }
+        "pair_whitelist": [],
+        "ccxt_config": {},
+        "ccxt_async_config": {}
     },
     "api_server": {
         "enabled": true,
@@ -70,7 +67,29 @@
     "telegram": {
         "enabled": false,
         "token": "",
-        "chat_id": ""
+        "chat_id": "",
+        "notification_settings": {
+            "status": "silent",
+            "protection_trigger_global": "on",
+            "warning": "on",
+            "startup": "off",
+            "entry": "silent",
+            "entry_fill": "on",
+            "entry_cancel": "on",
+            "exit_cancel": "on",
+            "exit_fill": "on",
+            "exit": {
+                "roi": "silent",
+                "emergency_exit": "silent",
+                "force_exit": "silent",
+                "exit_signal": "silent",
+                "trailing_stop_loss": "silent",
+                "stop_loss": "silent",
+                "stoploss_on_exchange": "silent",
+                "custom_exit": "silent"
+            },
+            "strategy_msg": "silent"
+        }
     },
     "bot_name": "crypto-futures-bot",
     "internals": {
