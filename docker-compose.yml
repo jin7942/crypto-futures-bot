@@ -10,7 +10,7 @@ services:
     volumes:
       - ./nfi/user_data:/freqtrade/user_data
       - ./nfi/configs:/freqtrade/configs
-      - ./nfi/NostalgiaForInfinityX7.py:/freqtrade/NostalgiaForInfinityX7.py:ro
+      - ./nfi/NostalgiaForInfinityX6.py:/freqtrade/NostalgiaForInfinityX6.py:ro
     env_file:
       - .env
     networks:
@@ -19,4 +19,5 @@ services:
     command: >
       trade
       --strategy-path .
+      --db-url sqlite:////freqtrade/user_data/tradesv3.dryrun.sqlite
       --logfile user_data/logs/freqtrade.log

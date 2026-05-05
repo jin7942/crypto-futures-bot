@@ -13,3 +13,5 @@
 | [ADR-005](ADR-005-deployment-local-infra.md) | 배포 전략 변경 (로컬 서버 인프라 활용) | 확정 | 2026-03-24 |
 | [ADR-006](ADR-006-futures-to-spot.md) | 선물 → 현물 전환 | 확정 | 2026-03-28 |
 | [ADR-007](ADR-007-nfi-official-config.md) | NFI 공식 설정 방식 채택 | 확정 | 2026-03-28 |
+| [ADR-008](ADR-008-pairlist-volume-to-static.md) | VolumePairList → 메이저 Static PairList 전환 | 확정 | 2026-05-05 |
+| [ADR-009](ADR-009-trade-db-host-mount.md) | Trade DB 호스트 볼륨 마운트 | 확정 | 2026-05-05 |

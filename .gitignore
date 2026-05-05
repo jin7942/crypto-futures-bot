@@ -14,6 +14,11 @@ freqtrade/user_data/hyperopt_results/
 freqtrade/user_data/models/
 freqtrade/user_data/plot/
 
+# Freqtrade trade database (host-mounted dry-run/live state)
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
 # Python
 __pycache__/
 *.py[cod]
